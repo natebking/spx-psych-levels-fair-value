@@ -579,6 +579,12 @@ const holiday = [
   assert.equal(consistent.gridLines.at(-1),9,'live ladder: 5 hundreds + 4 fifties');
   assert.equal(consistent.histSessions.at(-1),5);
   assert.equal(consistent.histLines.at(-1),5*9,'every past session drew the same 9-line ladder');
+  // Long lookback: 40 sessions requested with 25s on (17 lines each) must stay under
+  // TradingView's 500-line cap by dropping the oldest sessions.
+  const longLook=await run(varied,{inputs:{'Previous Sessions to Show':40,'Show 25-Point Levels':true}});
+  assert.equal(longLook.gridLines.at(-1),17);
+  assert.ok(longLook.histLines.every((x,i)=>x+longLook.gridLines[i]<=490),'under the line budget');
+  assert.equal(longLook.histSessions.at(-1),Math.floor(490/17)-1,'as many whole sessions as fit');
   // Sticky centre: a session opening at 7660, within one 100 of the previous ladder's
   // 7600 centre, keeps 7600 instead of jumping to 7700. At 7710 it moves to 7700.
   const stuck=await run([...warm,row('2026-09-10T18:00:00-04:00',7666.5)]);

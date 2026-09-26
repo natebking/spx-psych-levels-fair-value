@@ -30,7 +30,7 @@ The same script is published on TradingView as **SPX Psych Levels + Fair Value f
 - With 50s on, each session's grid is one evenly spaced 50-point ladder centred on the 100 nearest price, with the same number of 100s each side, so every day has the same shape. Turning on 25s fills every gap in it.
 - **Session Anchored** (default) holds the basis captured at the session open: 18:00 New York for futures, the first bar of the day for SPY. **Live Basis** re-projects the levels as the basis moves.
 - **Re-centre Grid on Trend** rebuilds the grid if price moves more than 100 SPX points from its centre.
-- **Previous Sessions to Show** (0 to 5, default 2) keeps earlier sessions' grids, faded, each drawn only across its own session.
+- **Previous Sessions to Show** (0 to 40, default 2) keeps earlier sessions' grids, faded, each drawn only across its own session. TradingView allows 500 lines per script, so on long lookbacks the oldest sessions drop off first.
 
 ## Fair value (ES / MES)
 

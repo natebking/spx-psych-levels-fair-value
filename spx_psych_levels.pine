@@ -73,8 +73,8 @@ em_mult_50 = input.float(2.0, "    50-Point Span (x ADR / expected move)", minva
 show_25_levels = input.bool(false, "Show 25-Point Levels", group="Level Selection")
 em_mult_25 = input.float(0.75, "    25-Point Span (when 50s hidden, x expected move)", minval=0.25, maxval=8, step=0.25, group="Level Selection",
      tooltip="When 50-point levels are shown, the 25s fill every gap across that grid's full range. This independent span applies only in Expected Move mode with the 50-point tier hidden.")
-history_sessions = input.int(2, "Previous Sessions to Show", minval=0, maxval=5, group="Level Selection",
-     tooltip="Keep the grid from the last N completed sessions on the chart, faded. Each session's lines run only from that session's start to its end. 0 = current session only.")
+history_sessions = input.int(2, "Previous Sessions to Show", minval=0, maxval=40, group="Level Selection",
+     tooltip="Keep the grid from the last N completed sessions on the chart, faded. Each session's lines run only from that session's start to its end. 0 = current session only. TradingView allows 500 lines per script, so on long lookbacks the oldest sessions are dropped first (about 50 sessions fit with 100s and 50s, about 25 with 25s or zones on).")
 auto_recenter = input.bool(true, "Re-centre Grid on Trend", group="Level Selection",
      tooltip="Rebuild the grid if price trends more than one full 100-pt increment from the session-open centre.")
 
@@ -300,7 +300,8 @@ archive_grid(end_time) =>
 
 // Past sessions give way to the live grid: if the total would near TradingView's
 // 500 line/box cap (which silently deletes the oldest drawings), drop the oldest
-// sessions first. The 10 spare lines cover the ADR envelope.
+// sessions first. The 10 spare lines cover the ADR envelope. This matters on long
+// lookbacks (up to 40 sessions).
 trim_history_to_budget() =>
     live_lines = array.size(lines_100) + array.size(lines_50) + array.size(lines_25)
     live_boxes = array.size(zones_100) + array.size(zones_50) + array.size(zones_25)
