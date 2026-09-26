@@ -44,7 +44,7 @@
 //  accumulators (no stateful calls inside request.security) to avoid repainting.
 //  Version history: see the publication's release notes.
 
-indicator("SPX Psych Levels + Fair Value for ES, MES and SPY", shorttitle="SPX Psych Levels", overlay=true, dynamic_requests=true,
+indicator("SPX Psych Levels + Fair Value for ES/MES and SPY", shorttitle="SPX Psych Levels", overlay=true, dynamic_requests=true,
           max_lines_count=500, max_boxes_count=500)
 
 // Hourly charts use completed 5-minute bars, not mismatched hourly ES/SPX bars.

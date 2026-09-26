@@ -1,4 +1,4 @@
-# SPX Psych Levels + Fair Value for ES, MES and SPY
+# SPX Psych Levels + Fair Value for ES/MES and SPY
 
 A TradingView (Pine Script v6) indicator that draws round SPX levels (100s, 50s and optional 25s) on ES/MES futures and SPY charts, translated through each instrument's basis to the index, plus a cash-session ADR envelope.
 
@@ -13,7 +13,7 @@ Levels show where round SPX numbers sit on your chart. They are reference areas,
 2. In TradingView, open the Pine Editor, paste it in and click **Add to chart**.
 3. Use it on an ES, MES (continuous or the active contract) or SPY chart.
 
-The same script is published on TradingView as **SPX Psych Levels + Fair Value for ES, MES and SPY** by SpinTrades.
+The same script is published on TradingView as **SPX Psych Levels + Fair Value for ES/MES and SPY** by SpinTrades.
 
 ## Supported charts
 
