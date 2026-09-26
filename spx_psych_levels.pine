@@ -160,6 +160,7 @@ var int session_basis_time = na
 var int display_basis_time = na
 var bool session_basis_pending = false
 var float grid_centre_spx = na
+var float ladder_centre = na
 var float session_em = na
 var int n100_drawn = 0
 var int n50_drawn = 0
@@ -810,13 +811,18 @@ if array.size(sample_times) > 0
                 high_100 = math.floor((centre_100 + n100 * 100) / 100) * 100
                 grid_low = base_level_25 - n25 * 25
                 grid_high = base_level_25 + n25 * 25
-                // The ladder is centred on the 100 nearest price and runs a whole number of
-                // 100s each side, so every session has the same shape (2k+1 hundreds with a 50
-                // between each). Centring on the nearest 50 made the size flip between days
-                // depending on whether the open sat nearer a 50 or a 100. k covers the 50-span
-                // from wherever price sits (up to 50 from the centre); Fixed Count uses k = count.
+                // The ladder is centred on a 100 and runs a whole number of 100s each side, so
+                // every session has the same shape (2k+1 hundreds with a 50 between each).
+                // A new session keeps the previous ladder's centre while price opens within one
+                // 100 of it, so an open that drifts across a 50 (7740 one day, 7760 the next)
+                // doesn't shift the whole ladder by 100. Otherwise, and on a mid-session
+                // re-centre, it snaps to the 100 nearest price. Fixed Count uses k = count.
                 if show_50_levels
                     k100 = span_mode == "Fixed Count" ? num_levels : math.min(10, math.max(1, math.ceil((n50 * 50 + 50) / 100)))
+                    if newPeriod and not drifted and not na(ladder_centre) and math.abs(implied_spx_now - ladder_centre) <= 100
+                        centre_100 := ladder_centre
+                    ladder_centre := centre_100
+                    grid_centre_spx := centre_100
                     low_100 := centre_100 - k100 * 100
                     high_100 := centre_100 + k100 * 100
                     grid_low := low_100

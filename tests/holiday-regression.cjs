@@ -545,7 +545,7 @@ const holiday = [
   // Regression (SPY 1h): implied SPX ~7730 rounded the 100s
   // to 7700 (7500-7900) but the 50s to 7750 (7650-7850), leaving SPX 7550 undrawn
   // below price. All tiers now share the 50-grid centre, so both sides match.
-  for(const [anchor,low100,high100,low50,high50] of [[7730,7500,7900,7550,7850],[7710,7500,7900,7550,7850],[7670,7500,7900,7550,7850],[7640,7400,7800,7450,7750]]) {
+  for(const [anchor,low100,high100,low50,high50] of [[7730,7500,7900,7550,7850],[7710,7500,7900,7550,7850],[7670,7400,7800,7450,7750],[7640,7400,7800,7450,7750]]) {
     const offCentre=[...warm,row('2026-09-10T18:00:00-04:00',anchor+6.5)];
     const grid=await run(offCentre);
     assert.equal(grid.n50.at(-1),4); assert.equal(grid.n100.at(-1),2);
@@ -579,6 +579,12 @@ const holiday = [
   assert.equal(consistent.gridLines.at(-1),9,'live ladder: 5 hundreds + 4 fifties');
   assert.equal(consistent.histSessions.at(-1),5);
   assert.equal(consistent.histLines.at(-1),5*9,'every past session drew the same 9-line ladder');
+  // Sticky centre: a session opening at 7660, within one 100 of the previous ladder's
+  // 7600 centre, keeps 7600 instead of jumping to 7700. At 7710 it moves to 7700.
+  const stuck=await run([...warm,row('2026-09-10T18:00:00-04:00',7666.5)]);
+  near(stuck.low100.at(-1),7400); near(stuck.high100.at(-1),7800);
+  const moved=await run([...warm,row('2026-09-10T18:00:00-04:00',7716.5)]);
+  near(moved.low100.at(-1),7500); near(moved.high100.at(-1),7900);
   console.log('PASS 100- and 50-point tiers share one centre, so neither side of price loses a level');
   // Historical grids: each completed session keeps its own lines, clipped to end where
   // the next session began, never overlapping the current grid; oldest are deleted.
@@ -609,9 +615,9 @@ const holiday = [
   checkQuarters(filled,7425,7775,8); near(filled.zoneWidth25.at(-1),10);
   // A 50-grid ending on a 50 (centre 7650: 7550-7750) rounds out to the 100s at
   // 7500 and 7800, and the 25s fill that last gap too.
-  // The ladder centres on the nearest 100, so an open either side of 7650 picks 7600
-  // or 7700 and the shape (9 lines, 100s at each end) is identical.
-  for(const [anchor,lo,hi] of [[7649.9,7425,7775],[7650.1,7525,7875]]){
+  // Opens either side of 7650 keep the previous 7600 centre (sticky); an open more
+  // than 100 away moves it. The shape (9 lines, 100s at each end) is identical.
+  for(const [anchor,lo,hi] of [[7649.9,7425,7775],[7650.1,7425,7775],[7720,7525,7875]]){
     const rr=await run([...warm,row('2026-09-10T18:00:00-04:00',anchor+6.5)],{inputs:allTiers});
     checkQuarters(rr,lo,hi,8);
     near(rr.high100.at(-1)-rr.low100.at(-1),400); assert.equal(rr.gridLines.at(-1),9+8);
@@ -629,8 +635,9 @@ const holiday = [
   const spyTrend=trend.map(r=>({...r,close:(r.close-6.5)/10-1.6,
     high:r.high==null?undefined:(r.high-6.5)/10-1.6,low:r.low==null?undefined:(r.low-6.5)/10-1.6}));
   const spyFill=await run(spyTrend,{spy:true,inputs:allTiers});
-  // SPY starts a new calendar-date grid on the final bar (SPX centre 7650).
-  checkQuarters(spyFill,7525,7875,8); near(spyFill.target7675.at(-1),765.9); near(spyFill.zoneWidth25.at(-1),1);
+  // SPY starts a new calendar-date grid on the final bar near SPX 7650; it keeps the
+  // previous 7600 centre because the open is within one 100 of it.
+  checkQuarters(spyFill,7425,7775,8); near(spyFill.target7675.at(-1),765.9); near(spyFill.zoneWidth25.at(-1),1);
   console.log('PASS exact quarter spacing/edges, count modes/limits, hidden/standalone tiers and SPY scaling');
   const bounds=[
     ['2026-03-08T01:55:00-05:00','2026-03-07T18:00:00-05:00','2026-03-08T18:00:00-04:00'],
