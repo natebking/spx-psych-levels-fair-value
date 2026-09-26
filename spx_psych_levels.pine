@@ -125,6 +125,9 @@ width_25 = input.int(1, "25-Point Width", minval=1, maxval=4, group="25-Point Li
 // === INFO TABLE ROWS ===
 // Pick the rows you want. Untick every row to hide the table. A Check row is added
 // automatically whenever the basis or model rate cannot be trusted.
+tbl_on = input.bool(true, "Show Info Table", group="Info Table")
+tbl_pos_in = input.string("Bottom Right", "Table Position", options=["Top Left", "Top Center", "Top Right", "Middle Left", "Middle Right", "Bottom Left", "Bottom Center", "Bottom Right"], group="Info Table")
+tbl_size_in = input.string("Small", "Table Text Size", options=["Tiny", "Small", "Normal"], group="Info Table")
 tbl_fv = input.bool(true, "Fair Value / Basis", group="Info Table",
      tooltip="ES/MES: fair value with its mode (plus rate, source and days to expiry in Theoretical/Blended). SPY: observed ETF basis.")
 tbl_spx = input.bool(false, "SPX Equivalent", group="Info Table",
@@ -139,8 +142,6 @@ tbl_adr = input.bool(false, "ADR+ / ADR- Prices", group="Info Table",
      tooltip="The envelope prices and their distance from the current price, in chart prices.")
 tbl_contract = input.bool(false, "Contract", group="Info Table",
      tooltip="The contract the levels are projected for (ES/MES) or the symbol (SPY).")
-tbl_pos_in = input.string("Bottom Right", "Table Position", options=["Top Left", "Top Center", "Top Right", "Middle Left", "Middle Right", "Bottom Left", "Bottom Center", "Bottom Right"], group="Info Table")
-tbl_size_in = input.string("Small", "Table Text Size", options=["Tiny", "Small", "Normal"], group="Info Table")
 // Model rows: the Theoretical/Blended calculation's inputs (ES/MES only). They also
 // work in Observed mode, to compare the observed basis against the carry model.
 tbl_m_model = input.bool(false, "Model Fair Value", group="Info Table: Model (ES/MES)",
@@ -156,7 +157,7 @@ tbl_m_days = input.bool(false, "Days to Expiry", group="Info Table: Model (ES/ME
 tbl_m_div = input.bool(false, "Dividend Yield", group="Info Table: Model (ES/MES)",
      tooltip="The S&P 500 dividend yield the model subtracts. It is a fixed estimate (1.2%), not a live quote.")
 show_model_rows = tbl_m_model or tbl_m_obs or tbl_m_rate or tbl_m_curve or tbl_m_days or tbl_m_div
-show_info_table = tbl_fv or tbl_spx or tbl_next or tbl_next100 or tbl_day or tbl_adr or tbl_contract or show_model_rows
+show_info_table = tbl_on and (tbl_fv or tbl_spx or tbl_next or tbl_next100 or tbl_day or tbl_adr or tbl_contract or show_model_rows)
 tbl_pos = tbl_pos_in == "Top Left" ? position.top_left : tbl_pos_in == "Top Center" ? position.top_center : tbl_pos_in == "Top Right" ? position.top_right : tbl_pos_in == "Middle Left" ? position.middle_left : tbl_pos_in == "Middle Right" ? position.middle_right : tbl_pos_in == "Bottom Left" ? position.bottom_left : tbl_pos_in == "Bottom Center" ? position.bottom_center : position.bottom_right
 tbl_size = tbl_size_in == "Tiny" ? size.tiny : tbl_size_in == "Normal" ? size.normal : size.small
 
