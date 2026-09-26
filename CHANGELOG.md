@@ -9,5 +9,5 @@ First open-source release, under the Mozilla Public License 2.0. It succeeds the
 - Free Treasury yields as the default model rate source, with FRED and a fixed backup curve as options.
 - One evenly spaced grid that ends on a 100 at each side; optional 25s fill every gap.
 - Previous sessions' grids, each drawn only across its own session.
-- Compact info table by default (SPX equivalent, nearest levels with distance, range vs ADR), with a Full option.
+- Info table rows are selectable one by one, with adjustable position and text size. By default it shows only the fair value.
 - Unsupported symbols and timeframes draw nothing instead of showing an error.

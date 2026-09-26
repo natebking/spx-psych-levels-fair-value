@@ -111,9 +111,28 @@ style_25 = input.string("Dotted", "25-Point Style", options=["Solid", "Dashed", 
 width_25 = input.int(1, "25-Point Width", minval=1, maxval=4, group="25-Point Line Style")
 
 // === FAIR VALUE ===
-info_table_mode = input.string("Compact", "Info Table", options=["Compact", "Full", "Off"], group="Fair Value",
-     tooltip="Compact (default) = SPX equivalent of the current price, the nearest drawn level above and below with distance in SPX points, and today's range versus ADR. Full adds the next 100-point levels, ADR envelope prices and distance, the fair value with its mode (and rate and days to expiry in model modes), and the contract. A Check row appears only when the basis or rate cannot be trusted. Off = no table.")
-show_info_table = info_table_mode != "Off"
+// === INFO TABLE ROWS ===
+// Pick the rows you want. Untick every row to hide the table. A Check row is added
+// automatically whenever the basis or model rate cannot be trusted.
+tbl_fv = input.bool(true, "Fair Value / Basis", group="Info Table",
+     tooltip="ES/MES: fair value with its mode (plus rate, source and days to expiry in Theoretical/Blended). SPY: observed ETF basis.")
+tbl_spx = input.bool(false, "SPX Equivalent", group="Info Table",
+     tooltip="The SPX price the current chart price corresponds to.")
+tbl_next = input.bool(false, "Nearest Levels", group="Info Table",
+     tooltip="The nearest drawn level above and below, with distance in SPX points.")
+tbl_next100 = input.bool(false, "Nearest 100s", group="Info Table",
+     tooltip="The nearest 100-point levels above and below, with distance in SPX points.")
+tbl_day = input.bool(false, "Day Range / ADR", group="Info Table",
+     tooltip="Today's cash-session range against ADR, as a percentage. Shows the ADR alone outside cash hours.")
+tbl_adr = input.bool(false, "ADR+ / ADR- Prices", group="Info Table",
+     tooltip="The envelope prices and their distance from the current price, in chart prices.")
+tbl_contract = input.bool(false, "Contract", group="Info Table",
+     tooltip="The contract the levels are projected for (ES/MES) or the symbol (SPY).")
+tbl_pos_in = input.string("Bottom Right", "Table Position", options=["Top Left", "Top Center", "Top Right", "Middle Left", "Middle Right", "Bottom Left", "Bottom Center", "Bottom Right"], group="Info Table")
+tbl_size_in = input.string("Small", "Table Text Size", options=["Tiny", "Small", "Normal"], group="Info Table")
+show_info_table = tbl_fv or tbl_spx or tbl_next or tbl_next100 or tbl_day or tbl_adr or tbl_contract
+tbl_pos = tbl_pos_in == "Top Left" ? position.top_left : tbl_pos_in == "Top Center" ? position.top_center : tbl_pos_in == "Top Right" ? position.top_right : tbl_pos_in == "Middle Left" ? position.middle_left : tbl_pos_in == "Middle Right" ? position.middle_right : tbl_pos_in == "Bottom Left" ? position.bottom_left : tbl_pos_in == "Bottom Center" ? position.bottom_center : position.bottom_right
+tbl_size = tbl_size_in == "Tiny" ? size.tiny : tbl_size_in == "Normal" ? size.normal : size.small
 fv_mode = input.string("Observed", "Fair Value Mode", options=["Theoretical", "Observed", "Blended"], group="Fair Value",
      tooltip="Observed = simultaneous ES-SPX basis (recommended). SPY always uses its observed SPY-SPX/10 basis; futures model modes do not apply to SPY.")
 rate_source = input.string("Treasury (free)", "Model Rate Source", options=["Treasury (free)", "FRED", "Fixed backup"], group="Fair Value",
@@ -801,9 +820,9 @@ if array.size(sample_times) > 0
                 high_100 = math.floor((centre_100 + n100 * 100) / 100) * 100
                 // With the 50s on, the grid is one evenly spaced ladder that ends on a 100 at
                 // each side: the 50-grid's ends rounded out to the nearest 100. An independent
-                // 100-span let wide days draw lone 100s far past the grid (Sep 15), and adding
+                // 100-span drew lone 100s far past the grid on wide days, and adding
                 // a fixed extra 100 left an empty 50 slot whenever the grid already ended on
-                // a 100 (Sep 22). The 25s fill the same ladder.
+                // a 100. The 25s fill the same ladder.
                 grid_low = base_level_25 - n25 * 25
                 grid_high = base_level_25 + n25 * 25
                 if show_50_levels
@@ -844,9 +863,10 @@ if htf_spy_closing
 
 // === INFO TABLE ===
 var table info_table = na
+var int info_rows_drawn = 0
 calculation_ready = not use_intrabar_data or not na(last_processed_sample_time)
 if is_valid and calculation_ready and show_info_table and na(info_table)
-    info_table := table.new(position.bottom_right, 2, 10, bgcolor=color.new(color.black, 85),
+    info_table := table.new(tbl_pos, 2, 10, bgcolor=color.new(color.black, 85),
                            border_width=1, border_color=color.gray)
 else if (not is_valid or not calculation_ready or not show_info_table) and not na(info_table)
     table.delete(info_table)
@@ -884,35 +904,40 @@ if barstate.islast and show_info_table and is_valid and calculation_ready
     warn_txt = basis_is_fallback ? "Waiting for SPX" : session_basis_pending ? "Basis resync pending" : in_cash and not na(basis_age_h) and basis_age_h > 1 ? "Basis stale " + str.tostring(basis_age_h, "#") + "h" : model_est ? "Rate est " + str.tostring(display_interest_rate, "#.##") + "%" : ""
 
     int row = 0
-    table.cell(info_table, 0, row, "SPX ≈", text_color=color.white, text_size=size.small)
-    table.cell(info_table, 1, row, na(implied_now) ? "-" : str.tostring(implied_now, "#.0"), text_color=color.white, text_size=size.small)
-    row += 1
-    table.cell(info_table, 0, row, "Next level", text_color=color.white, text_size=size.small)
-    table.cell(info_table, 1, row, level_pair_txt(up_lvl, dn_lvl, implied_now), text_color=color.white, text_size=size.small)
-    row += 1
-    if info_table_mode == "Full"
-        up_100 = nearest_in(spx_100, implied_now, true)
-        dn_100 = nearest_in(spx_100, implied_now, false)
-        table.cell(info_table, 0, row, "Next 100", text_color=color.white, text_size=size.small)
-        table.cell(info_table, 1, row, level_pair_txt(up_100, dn_100, implied_now), text_color=color.gray, text_size=size.small)
-        row += 1
-    table.cell(info_table, 0, row, "Day / ADR", text_color=color.white, text_size=size.small)
-    table.cell(info_table, 1, row, range_txt, text_color=na(pct_adr) ? color.gray : color.white, text_size=size.small)
-    row += 1
-    if info_table_mode == "Full"
-        adr_txt = na(adr_up_ln) or na(adr_dn_ln) ? "-" : str.tostring(line.get_y1(adr_up_ln), format.mintick) + " " + str.tostring(line.get_y1(adr_up_ln) - close, "+#.##;-#.##") + "  /  " + str.tostring(line.get_y1(adr_dn_ln), format.mintick) + " " + str.tostring(line.get_y1(adr_dn_ln) - close, "+#.##;-#.##")
-        table.cell(info_table, 0, row, "ADR+ / ADR-", text_color=color.white, text_size=size.small)
-        table.cell(info_table, 1, row, adr_txt, text_color=color.gray, text_size=size.small)
-        row += 1
+    if tbl_fv
         fv_color = is_spy ? color.aqua : fv_mode == "Theoretical" ? color.yellow : fv_mode == "Observed" ? color.orange : color.aqua
         track_txt = level_tracking == "Live Basis" ? "live" : "anchored"
-        fv_txt = is_spy ? str.tostring(display_fair_value, "#.###") + " ETF basis, " + track_txt : fv_mode == "Observed" ? str.tostring(display_fair_value, "#.##") + " Observed, " + track_txt : str.tostring(display_fair_value, "#.##") + " " + fv_mode + " @ " + str.tostring(display_interest_rate, "#.##") + "% " + (session_rate_estimated ? "est" : rate_source == "FRED" ? "FRED" : "TSY") + ", " + str.tostring(display_days_to_expiry) + "d"
-        table.cell(info_table, 0, row, is_spy ? "Basis" : "Fair value", text_color=color.white, text_size=size.small)
-        table.cell(info_table, 1, row, fv_txt, text_color=fv_color, text_size=size.small)
+        fv_txt = na(display_fair_value) ? "-" : is_spy ? str.tostring(display_fair_value, "#.###") + " ETF basis, " + track_txt : fv_mode == "Observed" ? str.tostring(display_fair_value, "#.##") + " Observed, " + track_txt : str.tostring(display_fair_value, "#.##") + " " + fv_mode + " @ " + str.tostring(display_interest_rate, "#.##") + "% " + (session_rate_estimated ? "est" : rate_source == "FRED" ? "FRED" : "TSY") + ", " + str.tostring(display_days_to_expiry) + "d"
+        table.cell(info_table, 0, row, is_spy ? "Basis" : "Fair value", text_color=color.white, text_size=tbl_size)
+        table.cell(info_table, 1, row, fv_txt, text_color=fv_color, text_size=tbl_size)
         row += 1
-        table.cell(info_table, 0, row, "Contract", text_color=color.white, text_size=size.small)
-        table.cell(info_table, 1, row, display_contract, text_color=color.yellow, text_size=size.small)
+    if tbl_spx
+        table.cell(info_table, 0, row, "SPX ≈", text_color=color.white, text_size=tbl_size)
+        table.cell(info_table, 1, row, na(implied_now) ? "-" : str.tostring(implied_now, "#.0"), text_color=color.white, text_size=tbl_size)
+        row += 1
+    if tbl_next
+        table.cell(info_table, 0, row, "Next level", text_color=color.white, text_size=tbl_size)
+        table.cell(info_table, 1, row, level_pair_txt(up_lvl, dn_lvl, implied_now), text_color=color.white, text_size=tbl_size)
+        row += 1
+    if tbl_next100
+        table.cell(info_table, 0, row, "Next 100", text_color=color.white, text_size=tbl_size)
+        table.cell(info_table, 1, row, level_pair_txt(nearest_in(spx_100, implied_now, true), nearest_in(spx_100, implied_now, false), implied_now), text_color=color.white, text_size=tbl_size)
+        row += 1
+    if tbl_day
+        table.cell(info_table, 0, row, "Day / ADR", text_color=color.white, text_size=tbl_size)
+        table.cell(info_table, 1, row, range_txt, text_color=na(pct_adr) ? color.gray : color.white, text_size=tbl_size)
+        row += 1
+    if tbl_adr
+        adr_txt = na(adr_up_ln) or na(adr_dn_ln) ? "-" : str.tostring(line.get_y1(adr_up_ln), format.mintick) + " " + str.tostring(line.get_y1(adr_up_ln) - close, "+#.##;-#.##") + "  /  " + str.tostring(line.get_y1(adr_dn_ln), format.mintick) + " " + str.tostring(line.get_y1(adr_dn_ln) - close, "+#.##;-#.##")
+        table.cell(info_table, 0, row, "ADR+ / ADR-", text_color=color.white, text_size=tbl_size)
+        table.cell(info_table, 1, row, adr_txt, text_color=color.white, text_size=tbl_size)
+        row += 1
+    if tbl_contract
+        table.cell(info_table, 0, row, "Contract", text_color=color.white, text_size=tbl_size)
+        table.cell(info_table, 1, row, display_contract, text_color=color.white, text_size=tbl_size)
         row += 1
     if warn_txt != ""
-        table.cell(info_table, 0, row, "Check", text_color=color.orange, text_size=size.small)
-        table.cell(info_table, 1, row, warn_txt, text_color=color.orange, text_size=size.small)
+        table.cell(info_table, 0, row, "Check", text_color=color.orange, text_size=tbl_size)
+        table.cell(info_table, 1, row, warn_txt, text_color=color.orange, text_size=tbl_size)
+        row += 1
+    info_rows_drawn := row

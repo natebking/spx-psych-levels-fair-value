@@ -63,9 +63,11 @@ It is a descriptive range reference, not a probability.
 
 ## Info table
 
-- **Compact** (default): SPX equivalent of the current price, the nearest drawn level above and below with distance, and today's range as a percentage of ADR.
-- **Full** adds the next 100-point levels, ADR envelope prices and distance, fair value with its mode (and rate and days to expiry in model modes) and the contract.
-- A **Check** row appears only when the basis or rate can't be trusted, for example while waiting for SPX data or when the rate is an estimate.
+You pick the rows under **Info Table** in the settings. By default it shows one row, **Fair value**: the value with its mode, plus rate, source and days to expiry in Theoretical and Blended. On SPY it shows the observed ETF basis.
+
+Optional rows: SPX equivalent of the current price, nearest levels above and below with distance in SPX points, nearest 100s, today's range against ADR, the ADR+ and ADR- prices with their distance, and the contract. Position and text size are adjustable.
+
+A **Check** row appears in amber only when the basis or rate can't be trusted, for example while waiting for SPX data or when the rate is an estimate. Untick every row to hide the table.
 
 ## Tests
 

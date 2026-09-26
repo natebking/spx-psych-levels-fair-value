@@ -67,7 +67,7 @@ const probes = {
   zones:'array.size(zones_100) + array.size(zones_50) + array.size(zones_25)',
   caps:'(na(adr_up_ln) ? 0 : 1) + (na(adr_dn_ln) ? 0 : 1)',
   labels:'(na(adr_up_lb) ? 0 : 1) + (na(adr_dn_lb) ? 0 : 1)',
-  infoTable:'na(info_table) ? 0 : 1',
+  infoTable:'na(info_table) ? 0 : 1', infoRows:'info_rows_drawn',
   count25:'array.size(spx_25)', zones25:'array.size(zones_25)',
   low25:'probe_tier_extreme(spx_25, false)', high25:'probe_tier_extreme(spx_25, true)',
   low50:'probe_tier_extreme(spx_50, false)', high50:'probe_tier_extreme(spx_50, true)',
@@ -256,14 +256,19 @@ const holiday = [
   const blended=await run(holiday,{inputs:{'Fair Value Mode':'Blended'}});
   near(blended.active[7],blended.model[7]+.5*Math.max(-6,Math.min(6,7-blended.model[7])));
   console.log('PASS live tracking and futures Observed/Blended/Theoretical behavior');
-  for(const [mode,expected] of [['Compact',1],['Full',1],['Off',0]]) {
+  // Info table rows are picked individually. Default: only Fair value (plus a Check
+  // row if something is wrong). All rows on: 7. None ticked: no table at all.
+  const allRows={'Fair Value / Basis':true,'SPX Equivalent':true,'Nearest Levels':true,'Nearest 100s':true,'Day Range / ADR':true,'ADR+ / ADR- Prices':true,'Contract':true};
+  const noRows=Object.fromEntries(Object.keys(allRows).map(k=>[k,false]));
+  for(const [inputs,expected,rows] of [[{},1,1],[allRows,1,7],[noRows,0,null],[{...noRows,'Contract':true,'Table Position':'Top Left','Table Text Size':'Tiny'},1,1]]) {
     for(const spyChart of [false,true]) {
-      const t=await run(spyChart?holiday.map(r=>({...r,close:r.spx!=null?r.spx/10-1.6:r.close/10-2.6})):holiday,{spy:spyChart,inputs:{'Info Table':mode,'Fair Value Mode':'Theoretical'}});
-      assert.equal(t.infoTable.at(-1),expected,`${mode}/${spyChart?'SPY':'ES'} info table`);
+      const t=await run(spyChart?holiday.map(r=>({...r,close:r.spx!=null?r.spx/10-1.6:r.close/10-2.6})):holiday,{spy:spyChart,inputs:{...inputs,'Fair Value Mode':'Observed'}});
+      assert.equal(t.infoTable.at(-1),expected,`${JSON.stringify(inputs)}/${spyChart?'SPY':'ES'} info table`);
+      if(rows!=null) assert.ok(t.infoRows.at(-1)===rows || t.infoRows.at(-1)===rows+1,`rows ${t.infoRows.at(-1)} vs ${rows} (+1 Check)`);
       assert.ok(t.gridLines.at(-1)>0);
     }
   }
-  console.log('PASS Compact (default), Full and Off info-table modes');
+  console.log('PASS info-table rows are user-selectable; default shows fair value only; none hides the table');
   const rateRows=[row('2026-09-22T09:30:00-04:00',7710,7700),row('2026-09-22T09:35:00-04:00',7711,7701)];
   const noRates={r1m:null,r3m:null,r6m:null,r1y:null};
   const obsNoFeed=await run(rateRows,{rejectRates:true});
@@ -518,7 +523,7 @@ const holiday = [
   near(nextCash.adr.at(-1),nextAdr);
   near(nextCash.cap.at(-1),toSpy(7860)+nextAdr);
   console.log('PASS ADR-10/14 and SPY cash-only lifecycle: delayed quote, normal/early close cleanup, postmarket exclusion, and next-open replacement');
-  // Screenshot reproduction: a 44-point ADR, SPX anchor ~7600 and a <100-point
+  // Regression: a 44-point ADR, SPX anchor ~7600 and a <100-point
   // rise. The former independent 0.75x 25-tier span stopped at SPX 7625.
   const warm=[];
   for(let d=ms('2026-08-20T00:00:00Z');d<=ms('2026-09-10T00:00:00Z');d+=86400000){
@@ -536,8 +541,8 @@ const holiday = [
   assert.equal(filled.count25.at(-1),4); assert.equal(filled.zones25.at(-1),4);
   near(filled.low25.at(-1),7525); near(filled.high25.at(-1),7675);
   assert.equal(filled.start.at(-1),ms('2026-09-10T18:00:00-04:00'));
-  console.log('PASS screenshot reproduction: 25-point gaps fill the 50-grid before a 100-point recenter');
-  // Screenshot reproduction (2026-09-26 SPY 1h): implied SPX ~7730 rounded the 100s
+  console.log('PASS 25-point gaps fill the 50-grid before a 100-point recenter');
+  // Regression (SPY 1h): implied SPX ~7730 rounded the 100s
   // to 7700 (7500-7900) but the 50s to 7750 (7650-7850), leaving SPX 7550 undrawn
   // below price. All tiers now share the 50-grid centre, so both sides match.
   for(const [anchor,low100,high100,low50,high50] of [[7730,7600,7900,7650,7850],[7710,7600,7800,7650,7750],[7670,7500,7800,7550,7750]]) {
@@ -549,7 +554,7 @@ const holiday = [
     near(grid.low100.at(-1)+grid.high100.at(-1),grid.low50.at(-1)+grid.high50.at(-1));
     assert.ok(grid.low100.at(-1)<grid.low50.at(-1) && grid.high100.at(-1)>grid.high50.at(-1),'100s extend past the 50-grid');
     near(grid.reach100.at(-1),grid.high100.at(-1)-(grid.low100.at(-1)+grid.high100.at(-1))/2);
-    // Sep 15 screenshot: a wide 100-span drew lone 100s far past the grid. With the
+    // Regression: a wide 100-span drew lone 100s far past the grid. With the
     // 50s on, the 100s frame the 50-grid plus one step, whatever the 100-span says.
     const wide=await run(offCentre,{inputs:{'    100-Point Span (when 50s hidden, x expected move)':8}});
     near(wide.low100.at(-1),low100); near(wide.high100.at(-1),high100);
@@ -583,7 +588,7 @@ const holiday = [
   };
   checkQuarters(filled,7525,7675,4); near(filled.zoneWidth25.at(-1),10);
   // A 50-grid ending on a 50 (centre 7650: 7550-7750) rounds out to the 100s at
-  // 7500 and 7800, and the 25s fill that last gap too (Sep 22 empty-slot report).
+  // 7500 and 7800, and the 25s fill that last gap too.
   for(const [anchor,lo,hi,count] of [[7624.9,7525,7675,4],[7625.1,7525,7775,6]]){
     const rr=await run([...warm,row('2026-09-10T18:00:00-04:00',anchor+6.5)],{inputs:allTiers});
     checkQuarters(rr,lo,hi,count);
