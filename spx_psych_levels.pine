@@ -806,11 +806,11 @@ if array.size(sample_times) > 0
                 line_end_time = grid_session_end
 
                 // With the 50s hidden, the 100s use their own span around the nearest 100.
-                centre_100 = math.round(implied_spx_now / 100) * 100
-                low_100 = math.ceil((centre_100 - n100 * 100) / 100) * 100
-                high_100 = math.floor((centre_100 + n100 * 100) / 100) * 100
-                grid_low = base_level_25 - n25 * 25
-                grid_high = base_level_25 + n25 * 25
+                float centre_100 = math.round(implied_spx_now / 100) * 100
+                float low_100 = math.ceil((centre_100 - n100 * 100) / 100) * 100
+                float high_100 = math.floor((centre_100 + n100 * 100) / 100) * 100
+                float grid_low = base_level_25 - n25 * 25
+                float grid_high = base_level_25 + n25 * 25
                 // The ladder is centred on a 100 and runs a whole number of 100s each side, so
                 // every session has the same shape (2k+1 hundreds with a 50 between each).
                 // A new session keeps the previous ladder's centre while price opens within one
