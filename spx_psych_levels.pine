@@ -130,7 +130,22 @@ tbl_contract = input.bool(false, "Contract", group="Info Table",
      tooltip="The contract the levels are projected for (ES/MES) or the symbol (SPY).")
 tbl_pos_in = input.string("Bottom Right", "Table Position", options=["Top Left", "Top Center", "Top Right", "Middle Left", "Middle Right", "Bottom Left", "Bottom Center", "Bottom Right"], group="Info Table")
 tbl_size_in = input.string("Small", "Table Text Size", options=["Tiny", "Small", "Normal"], group="Info Table")
-show_info_table = tbl_fv or tbl_spx or tbl_next or tbl_next100 or tbl_day or tbl_adr or tbl_contract
+// Model rows: the Theoretical/Blended calculation's inputs (ES/MES only). They also
+// work in Observed mode, to compare the observed basis against the carry model.
+tbl_m_model = input.bool(false, "Model Fair Value", group="Info Table: Model (ES/MES)",
+     tooltip="The carry model's fair value before any observed blending: SPX x rate x days/365 - SPX x dividend yield x days/365.")
+tbl_m_obs = input.bool(false, "Observed Basis vs Model", group="Info Table: Model (ES/MES)",
+     tooltip="The observed ES - SPX basis and how far it sits from the model. Blended mode adds half of this gap (capped at 6).")
+tbl_m_rate = input.bool(false, "Rate Breakdown", group="Info Table: Model (ES/MES)",
+     tooltip="Interpolated Treasury rate + funding spread + year-end/quarter-end seasonal premium = the model rate.")
+tbl_m_curve = input.bool(false, "Treasury Curve", group="Info Table: Model (ES/MES)",
+     tooltip="The 1M/3M/6M/1Y yields the model interpolates between. Values marked * are fixed estimates because the source had no valid quote.")
+tbl_m_days = input.bool(false, "Days to Expiry", group="Info Table: Model (ES/MES)",
+     tooltip="Calendar days to the contract's third-Friday expiry, as used by the model.")
+tbl_m_div = input.bool(false, "Dividend Yield", group="Info Table: Model (ES/MES)",
+     tooltip="The S&P 500 dividend yield the model subtracts. It is a fixed estimate (1.2%), not a live quote.")
+show_model_rows = tbl_m_model or tbl_m_obs or tbl_m_rate or tbl_m_curve or tbl_m_days or tbl_m_div
+show_info_table = tbl_fv or tbl_spx or tbl_next or tbl_next100 or tbl_day or tbl_adr or tbl_contract or show_model_rows
 tbl_pos = tbl_pos_in == "Top Left" ? position.top_left : tbl_pos_in == "Top Center" ? position.top_center : tbl_pos_in == "Top Right" ? position.top_right : tbl_pos_in == "Middle Left" ? position.middle_left : tbl_pos_in == "Middle Right" ? position.middle_right : tbl_pos_in == "Bottom Left" ? position.bottom_left : tbl_pos_in == "Bottom Center" ? position.bottom_center : position.bottom_right
 tbl_size = tbl_size_in == "Tiny" ? size.tiny : tbl_size_in == "Normal" ? size.normal : size.small
 fv_mode = input.string("Observed", "Fair Value Mode", options=["Theoretical", "Observed", "Blended"], group="Fair Value",
@@ -152,6 +167,16 @@ var float session_fair_value = na
 var float session_interest_rate = na
 var bool session_rate_estimated = false
 var int session_days_to_expiry = 0
+var float session_rf = na
+var float session_funding = na
+var float session_seasonal = na
+var float session_spx_model = na
+var float session_r1m = na
+var float session_r3m = na
+var float session_r6m = na
+var float session_r1y = na
+var string session_curve_est = ""
+var int session_expiry_time = na
 var float raw_model_fv = na
 var float obs_fv_stored = na
 var float bias_adj_stored = 0.0
@@ -702,8 +727,19 @@ if array.size(sample_times) > 0
                 T = math.max(1, days_to_expiry) / 365.0
                 rate_estimated = T <= 1.0/12.0 ? na(r1m) : T <= 0.25 ? (na(r1m) or na(r3m)) : T <= 0.5 ? (na(r3m) or na(r6m)) : (na(r6m) or na(r1y))
                 rf = T <= 1.0/12.0 ? r1m_safe : T <= 0.25 ? r1m_safe + (r3m_safe - r1m_safe) * ((T - 1.0/12.0) / (0.25 - 1.0/12.0)) : T <= 0.5 ? r3m_safe + (r6m_safe - r3m_safe) * ((T - 0.25) / (0.50 - 0.25)) : r6m_safe + (r1y_safe - r6m_safe) * ((T - 0.50) / (1.00 - 0.50))
-                base_rate = rf + (T <= 0.25 ? 45 : T <= 0.5 ? 40 : 35) / 100.0
-                interest_rate = base_rate + (days_to_expiry <= 35 ? seasonal_bps_from_expiry(expiry_time) / 100.0 : 0.0)
+                funding = (T <= 0.25 ? 45 : T <= 0.5 ? 40 : 35) / 100.0
+                seasonal = days_to_expiry <= 35 ? seasonal_bps_from_expiry(expiry_time) / 100.0 : 0.0
+                base_rate = rf + funding
+                interest_rate = base_rate + seasonal
+                session_rf := rf
+                session_funding := funding
+                session_seasonal := seasonal
+                session_r1m := r1m_safe
+                session_r3m := r3m_safe
+                session_r6m := r6m_safe
+                session_r1y := r1y_safe
+                session_curve_est := (na(r1m) ? "1" : "") + (na(r3m) ? "3" : "") + (na(r6m) ? "6" : "") + (na(r1y) ? "Y" : "")
+                session_expiry_time := expiry_time
                 if interest_rate < 2.0
                     interest_rate := 4.5
                     rate_estimated := true
@@ -721,6 +757,7 @@ if array.size(sample_times) > 0
                     session_days_to_expiry := 0
                 else
                     spx_for_model = na(spx_daily_close) ? sample_spx : spx_daily_close
+                    session_spx_model := spx_for_model
                     fair_value = spx_for_model * (interest_rate/100) * (days_to_expiry/365) - spx_for_model * 0.012 * (days_to_expiry/365)
                     raw_model_fv := fair_value
                     obs_fv_stored := observed_basis
@@ -866,7 +903,7 @@ var table info_table = na
 var int info_rows_drawn = 0
 calculation_ready = not use_intrabar_data or not na(last_processed_sample_time)
 if is_valid and calculation_ready and show_info_table and na(info_table)
-    info_table := table.new(tbl_pos, 2, 10, bgcolor=color.new(color.black, 85),
+    info_table := table.new(tbl_pos, 2, 16, bgcolor=color.new(color.black, 85),
                            border_width=1, border_color=color.gray)
 else if (not is_valid or not calculation_ready or not show_info_table) and not na(info_table)
     table.delete(info_table)
@@ -888,7 +925,7 @@ level_pair_txt(up, dn, ref) =>
      (na(dn) ? "-" : "▼ " + str.tostring(dn, "#") + " " + str.tostring(dn - ref, "+#.0;-#.0"))
 
 if barstate.islast and show_info_table and is_valid and calculation_ready
-    table.clear(info_table, 0, 0, 1, 9)
+    table.clear(info_table, 0, 0, 1, 15)
     // Trader-facing rows: the SPX price being traded, the nearest levels and how far
     // they are (SPX points), and how much of the day's average range is used.
     implied_now = na(display_fair_value) ? na : is_spy ? (close - display_fair_value) * 10.0 : close - display_fair_value
@@ -936,6 +973,35 @@ if barstate.islast and show_info_table and is_valid and calculation_ready
         table.cell(info_table, 0, row, "Contract", text_color=color.white, text_size=tbl_size)
         table.cell(info_table, 1, row, display_contract, text_color=color.white, text_size=tbl_size)
         row += 1
+    if show_model_rows and not is_spy
+        mcol = color.silver
+        if tbl_m_model
+            table.cell(info_table, 0, row, "Model FV", text_color=color.white, text_size=tbl_size)
+            table.cell(info_table, 1, row, na(raw_model_fv) ? "-" : str.tostring(raw_model_fv, "#.##"), text_color=mcol, text_size=tbl_size)
+            row += 1
+        if tbl_m_obs
+            gap = na(obs_fv_stored) or na(raw_model_fv) ? na : obs_fv_stored - raw_model_fv
+            table.cell(info_table, 0, row, "Observed", text_color=color.white, text_size=tbl_size)
+            table.cell(info_table, 1, row, na(obs_fv_stored) ? "-" : str.tostring(obs_fv_stored, "#.##") + (na(gap) ? "" : " (" + str.tostring(gap, "+#.##;-#.##") + " vs model)"), text_color=mcol, text_size=tbl_size)
+            row += 1
+        if tbl_m_rate
+            src_txt = rate_source == "Fixed backup" ? "fixed" : rate_source == "FRED" ? "FRED" : "TSY"
+            table.cell(info_table, 0, row, "Rate", text_color=color.white, text_size=tbl_size)
+            table.cell(info_table, 1, row, na(session_rf) ? "-" : str.tostring(session_rf, "#.##") + "% " + src_txt + " + " + str.tostring(session_funding, "#.##") + " funding" + (session_seasonal != 0 ? " + " + str.tostring(session_seasonal, "#.##") + " seasonal" : "") + " = " + str.tostring(display_interest_rate, "#.##") + "%", text_color=mcol, text_size=tbl_size)
+            row += 1
+        if tbl_m_curve
+            est = session_curve_est
+            table.cell(info_table, 0, row, "Curve", text_color=color.white, text_size=tbl_size)
+            table.cell(info_table, 1, row, na(session_r1m) ? "-" : "1M " + str.tostring(session_r1m, "#.##") + (str.contains(est, "1") ? "*" : "") + "  3M " + str.tostring(session_r3m, "#.##") + (str.contains(est, "3") ? "*" : "") + "  6M " + str.tostring(session_r6m, "#.##") + (str.contains(est, "6") ? "*" : "") + "  1Y " + str.tostring(session_r1y, "#.##") + (str.contains(est, "Y") ? "*" : ""), text_color=mcol, text_size=tbl_size)
+            row += 1
+        if tbl_m_days
+            table.cell(info_table, 0, row, "Expiry", text_color=color.white, text_size=tbl_size)
+            table.cell(info_table, 1, row, na(session_expiry_time) ? "-" : str.tostring(display_days_to_expiry) + "d to " + str.format_time(session_expiry_time, "MMM d", "America/New_York"), text_color=mcol, text_size=tbl_size)
+            row += 1
+        if tbl_m_div
+            table.cell(info_table, 0, row, "Div yield", text_color=color.white, text_size=tbl_size)
+            table.cell(info_table, 1, row, "1.20% est (SPX " + (na(session_spx_model) ? "-" : str.tostring(session_spx_model, "#")) + ")", text_color=mcol, text_size=tbl_size)
+            row += 1
     if warn_txt != ""
         table.cell(info_table, 0, row, "Check", text_color=color.orange, text_size=tbl_size)
         table.cell(info_table, 1, row, warn_txt, text_color=color.orange, text_size=tbl_size)

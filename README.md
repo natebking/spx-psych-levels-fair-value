@@ -67,6 +67,8 @@ You pick the rows under **Info Table** in the settings. By default it shows one 
 
 Optional rows: SPX equivalent of the current price, nearest levels above and below with distance in SPX points, nearest 100s, today's range against ADR, the ADR+ and ADR- prices with their distance, and the contract. Position and text size are adjustable.
 
+A second group, **Info Table: Model (ES/MES)**, adds the carry model's inputs: the model fair value, the observed basis and its gap to the model, the rate breakdown (Treasury rate + funding spread + seasonal premium), the Treasury curve (fixed estimates marked *), days to expiry, and the dividend yield estimate.
+
 A **Check** row appears in amber only when the basis or rate can't be trusted, for example while waiting for SPX data or when the rate is an estimate. Untick every row to hide the table.
 
 ## Tests
