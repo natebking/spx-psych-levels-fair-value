@@ -54,6 +54,17 @@ native_timeframe = timeframe.isintraday and not na(chart_seconds) and chart_seco
 use_intrabar_data = timeframe.isintraday and (chart_seconds == 3600 or chart_seconds == 7200 or chart_seconds == 10800 or chart_seconds == 14400)
 timeframe_supported = native_timeframe or use_intrabar_data
 
+// === FAIR VALUE === (first in settings: it drives the projection)
+fv_mode = input.string("Observed", "Fair Value Mode", options=["Theoretical", "Observed", "Blended"], group="Fair Value",
+     tooltip="Observed = simultaneous ES-SPX basis (recommended). SPY always uses its observed SPY-SPX/10 basis; futures model modes do not apply to SPY.")
+rate_source = input.string("Treasury (free)", "Model Rate Source", options=["Treasury (free)", "FRED", "Fixed backup"], group="Fair Value",
+     tooltip="Rates used only by Theoretical/Blended futures modes. Treasury (free) = TradingView's free TVC yields US01MY/US03MY/US06MY/US01Y, with 3M = 0.6 x IRX (converted from discount to bond-equivalent) + 0.4 x US03MY. Any tenor outside 0-20% is treated as missing. FRED = DGS1MO/3MO/6MO/1 (may need economic-data access; switch away if a permission error appears). Fixed backup = no requests. Missing tenors use fixed backups (1M 4.22%, 3M 4.06%, 6M 3.95%, 1Y 3.85%), which are assumptions, not quotes, and Rate marks them est. Observed mode and SPY never request rates.")
+level_tracking = input.string("Session Anchored", "Level Tracking", options=["Session Anchored", "Live Basis"], group="Fair Value",
+     tooltip="Session Anchored = hold the session-open basis. After a closure, an anchor older than 20 hours refreshes once matching cash data resumes. Live Basis = re-project every bar using the latest observed basis (ES Observed mode or SPY).")
+basis_smooth = input.int(5, "Basis Smoothing (bars)", minval=1, maxval=60, group="Fair Value",
+     tooltip="Native chart bars on supported intervals through 30 minutes; completed 5-minute bars on 1h, 2h, 3h and 4h charts. Higher-timeframe output can update up to 5 minutes after a session event.")
+fv_adjustment = input.float(0, "Manual Adjustment (SPX pts)", minval=-20, maxval=20, step=0.25, group="Fair Value")
+
 // === LEVEL SELECTION ===
 span_mode = input.string("Expected Move", "Level Span Mode", options=["Expected Move", "Fixed Count"], group="Level Selection",
      tooltip="Expected Move = draw each tier out to a multiple of the expected daily range (recommended). Fixed Count = a fixed number of levels each side regardless of volatility.")
@@ -73,8 +84,9 @@ em_mult_50 = input.float(2.0, "    50-Point Span (x ADR / expected move)", minva
 show_25_levels = input.bool(false, "Show 25-Point Levels", group="Level Selection")
 em_mult_25 = input.float(0.75, "    25-Point Span (when 50s hidden, x expected move)", minval=0.25, maxval=8, step=0.25, group="Level Selection",
      tooltip="When 50-point levels are shown, the 25s fill every gap across that grid's full range. This independent span applies only in Expected Move mode with the 50-point tier hidden.")
-history_sessions = input.int(2, "Previous Sessions to Show", minval=0, maxval=40, group="Level Selection",
-     tooltip="Keep the grid from the last N completed sessions on the chart, faded. Each session's lines run only from that session's start to its end. 0 = current session only. TradingView allows 500 lines per script, so on long lookbacks the oldest sessions are dropped first (about 50 sessions fit with 100s and 50s, about 25 with 25s or zones on).")
+sessions_to_show = input.int(3, "Sessions to Show", minval=1, maxval=41, group="Level Selection",
+     tooltip="How many session grids to draw, counting the current (or most recent) session. 1 = current session only; 3 = current plus the two before it, faded. Each session's lines run only from that session's start to its end. TradingView allows 500 lines per script, so on long lookbacks the oldest sessions are dropped first (about 50 sessions fit with 100s and 50s, about 25 with 25s or zones on).")
+history_sessions = sessions_to_show - 1
 auto_recenter = input.bool(true, "Re-centre Grid on Trend", group="Level Selection",
      tooltip="Rebuild the grid if price trends more than one full 100-pt increment from the session-open centre.")
 
@@ -110,7 +122,6 @@ color_25 = input.color(color.new(color.blue, 45), "25-Point Color", group="25-Po
 style_25 = input.string("Dotted", "25-Point Style", options=["Solid", "Dashed", "Dotted"], group="25-Point Line Style")
 width_25 = input.int(1, "25-Point Width", minval=1, maxval=4, group="25-Point Line Style")
 
-// === FAIR VALUE ===
 // === INFO TABLE ROWS ===
 // Pick the rows you want. Untick every row to hide the table. A Check row is added
 // automatically whenever the basis or model rate cannot be trusted.
@@ -148,15 +159,6 @@ show_model_rows = tbl_m_model or tbl_m_obs or tbl_m_rate or tbl_m_curve or tbl_m
 show_info_table = tbl_fv or tbl_spx or tbl_next or tbl_next100 or tbl_day or tbl_adr or tbl_contract or show_model_rows
 tbl_pos = tbl_pos_in == "Top Left" ? position.top_left : tbl_pos_in == "Top Center" ? position.top_center : tbl_pos_in == "Top Right" ? position.top_right : tbl_pos_in == "Middle Left" ? position.middle_left : tbl_pos_in == "Middle Right" ? position.middle_right : tbl_pos_in == "Bottom Left" ? position.bottom_left : tbl_pos_in == "Bottom Center" ? position.bottom_center : position.bottom_right
 tbl_size = tbl_size_in == "Tiny" ? size.tiny : tbl_size_in == "Normal" ? size.normal : size.small
-fv_mode = input.string("Observed", "Fair Value Mode", options=["Theoretical", "Observed", "Blended"], group="Fair Value",
-     tooltip="Observed = simultaneous ES-SPX basis (recommended). SPY always uses its observed SPY-SPX/10 basis; futures model modes do not apply to SPY.")
-rate_source = input.string("Treasury (free)", "Model Rate Source", options=["Treasury (free)", "FRED", "Fixed backup"], group="Fair Value",
-     tooltip="Rates used only by Theoretical/Blended futures modes. Treasury (free) = TradingView's free TVC yields US01MY/US03MY/US06MY/US01Y, with 3M = 0.6 x IRX (converted from discount to bond-equivalent) + 0.4 x US03MY. Any tenor outside 0-20% is treated as missing. FRED = DGS1MO/3MO/6MO/1 (may need economic-data access; switch away if a permission error appears). Fixed backup = no requests. Missing tenors use fixed backups (1M 4.22%, 3M 4.06%, 6M 3.95%, 1Y 3.85%), which are assumptions, not quotes, and Rate marks them est. Observed mode and SPY never request rates.")
-level_tracking = input.string("Session Anchored", "Level Tracking", options=["Session Anchored", "Live Basis"], group="Fair Value",
-     tooltip="Session Anchored = hold the session-open basis. After a closure, an anchor older than 20 hours refreshes once matching cash data resumes. Live Basis = re-project every bar using the latest observed basis (ES Observed mode or SPY).")
-basis_smooth = input.int(5, "Basis Smoothing (bars)", minval=1, maxval=60, group="Fair Value",
-     tooltip="Native chart bars on supported intervals through 30 minutes; completed 5-minute bars on 1h, 2h, 3h and 4h charts. Higher-timeframe output can update up to 5 minutes after a session event.")
-fv_adjustment = input.float(0, "Manual Adjustment (SPX pts)", minval=-20, maxval=20, step=0.25, group="Fair Value")
 
 // === STATE ===
 var float display_fair_value = na

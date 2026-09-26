@@ -575,13 +575,13 @@ const holiday = [
     varied.push(row(date+'T16:00:00-04:00',o+6.5));
     varied.push(row(date+'T18:00:00-04:00',o+6.5));
   }
-  const consistent=await run(varied,{inputs:{'Previous Sessions to Show':5}});
+  const consistent=await run(varied,{inputs:{'Sessions to Show':6}});
   assert.equal(consistent.gridLines.at(-1),9,'live ladder: 5 hundreds + 4 fifties');
   assert.equal(consistent.histSessions.at(-1),5);
   assert.equal(consistent.histLines.at(-1),5*9,'every past session drew the same 9-line ladder');
   // Long lookback: 40 sessions requested with 25s on (17 lines each) must stay under
   // TradingView's 500-line cap by dropping the oldest sessions.
-  const longLook=await run(varied,{inputs:{'Previous Sessions to Show':40,'Show 25-Point Levels':true}});
+  const longLook=await run(varied,{inputs:{'Sessions to Show':41,'Show 25-Point Levels':true}});
   assert.equal(longLook.gridLines.at(-1),17);
   assert.ok(longLook.histLines.every((x,i)=>x+longLook.gridLines[i]<=490),'under the line budget');
   assert.equal(longLook.histSessions.at(-1),Math.floor(490/17)-1,'as many whole sessions as fit');
@@ -595,7 +595,7 @@ const holiday = [
   // Historical grids: each completed session keeps its own lines, clipped to end where
   // the next session began, never overlapping the current grid; oldest are deleted.
   for(const [keep,zonesOn] of [[2,false],[5,true],[0,false]]) {
-    const h=await run(warm,{inputs:{'Previous Sessions to Show':keep,'Show Margin of Error Zones':zonesOn,'Show 25-Point Levels':true}});
+    const h=await run(warm,{inputs:{'Sessions to Show':keep+1,'Show Margin of Error Zones':zonesOn,'Show 25-Point Levels':true}});
     assert.equal(h.histSessions.at(-1),keep,`keeps ${keep} sessions`);
     assert.ok(h.histSessions.every(x=>x<=keep));
     assert.ok(h.histLeak.every(x=>x===0),'history never overlaps the current session');
@@ -607,7 +607,7 @@ const holiday = [
   // The densest grid (about 81 lines per session) with 5 past sessions must stay under
   // the 500-line cap, or TradingView would silently delete the oldest drawings,
   // including the ADR lines. The oldest-first trim is a guard if the caps ever change.
-  const dense=await run(warm,{inputs:{'Previous Sessions to Show':5,'Show Margin of Error Zones':true,'Show 25-Point Levels':true,'Level Span Mode':'Fixed Count','Fixed Count: Levels Each Side':10}});
+  const dense=await run(warm,{inputs:{'Sessions to Show':6,'Show Margin of Error Zones':true,'Show 25-Point Levels':true,'Level Span Mode':'Fixed Count','Fixed Count: Levels Each Side':10}});
   assert.ok(dense.gridLines.at(-1)>=80,'dense live grid drawn in full');
   assert.ok(dense.histLines.every((x,i)=>x+dense.gridLines[i]<=490),'history plus live grid stays under budget');
   assert.equal(dense.histSessions.at(-1),Math.min(5,Math.floor(490/dense.gridLines.at(-1))-1),'keeps as many sessions as fit');
