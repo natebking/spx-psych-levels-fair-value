@@ -27,7 +27,7 @@ The same script is published on TradingView as **SPX Psych Levels + Fair Value f
 ## The grid
 
 - **Span** scales with the expected daily range (ADR-14 by default; ADR-10, VIX, VIX1D or VIX9D selectable), or a fixed number of levels per side.
-- With 50s on, the grid is one evenly spaced 50-point ladder that ends on a 100 at each side. Turning on 25s fills every gap in it.
+- With 50s on, each session's grid is one evenly spaced 50-point ladder centred on the 100 nearest price, with the same number of 100s each side, so every day has the same shape. Turning on 25s fills every gap in it.
 - **Session Anchored** (default) holds the basis captured at the session open: 18:00 New York for futures, the first bar of the day for SPY. **Live Basis** re-projects the levels as the basis moves.
 - **Re-centre Grid on Trend** rebuilds the grid if price moves more than 100 SPX points from its centre.
 - **Previous Sessions to Show** (0 to 5, default 2) keeps earlier sessions' grids, faded, each drawn only across its own session.

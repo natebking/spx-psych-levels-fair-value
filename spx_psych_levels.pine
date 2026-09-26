@@ -796,13 +796,6 @@ if array.size(sample_times) > 0
                 n25 = show_50_levels ? n50 * 2 : (span_mode == "Fixed Count" ? num_levels * 4 : math.min(24, math.max(1, math.ceil(em_mult_25 * em / 25))))
                 base_level_50 = math.round(implied_spx_now / 50) * 50
                 base_level_25 = show_50_levels ? base_level_50 : math.round(implied_spx_now / 25) * 25
-                // Hard guarantee: the 100-tier must extend past the 50-tier. Because each tier
-                // ceil()s its span to whole increments independently, two different multipliers
-                // can land on the same reach (2.5x and 2.0x both gave 200pt at ADR 77.1), which
-                // silently destroys the structural-anchor role of the 100s.
-                if show_100_levels and show_50_levels
-                    while n100 * 100 <= n50 * 50 and n100 < 15
-                        n100 += 1
 
                 n100_drawn := n100
                 n50_drawn := n50
@@ -811,25 +804,26 @@ if array.size(sample_times) > 0
                 line_start_time = na(session_start_time) ? sample_time : session_start_time
                 line_end_time = grid_session_end
 
-                // With the 50s on, the 100s share the 50-grid centre and cover every multiple
-                // of 100 within +/- their reach of it. Rounding the 100s to their own centre
-                // left one side a whole 50-level short (e.g. 100s 7500-7900 around 7700 but
-                // 50s 7650-7850 around 7750, so 7550 was never drawn).
-                centre_100 = show_50_levels ? base_level_50 : math.round(implied_spx_now / 100) * 100
+                // With the 50s hidden, the 100s use their own span around the nearest 100.
+                centre_100 = math.round(implied_spx_now / 100) * 100
                 low_100 = math.ceil((centre_100 - n100 * 100) / 100) * 100
                 high_100 = math.floor((centre_100 + n100 * 100) / 100) * 100
-                // With the 50s on, the grid is one evenly spaced ladder that ends on a 100 at
-                // each side: the 50-grid's ends rounded out to the nearest 100. An independent
-                // 100-span drew lone 100s far past the grid on wide days, and adding
-                // a fixed extra 100 left an empty 50 slot whenever the grid already ended on
-                // a 100. The 25s fill the same ladder.
                 grid_low = base_level_25 - n25 * 25
                 grid_high = base_level_25 + n25 * 25
+                // The ladder is centred on the 100 nearest price and runs a whole number of
+                // 100s each side, so every session has the same shape (2k+1 hundreds with a 50
+                // between each). Centring on the nearest 50 made the size flip between days
+                // depending on whether the open sat nearer a 50 or a 100. k covers the 50-span
+                // from wherever price sits (up to 50 from the centre); Fixed Count uses k = count.
                 if show_50_levels
-                    low_100 := math.floor((base_level_50 - n50 * 50) / 100) * 100
-                    high_100 := math.ceil((base_level_50 + n50 * 50) / 100) * 100
+                    k100 = span_mode == "Fixed Count" ? num_levels : math.min(10, math.max(1, math.ceil((n50 * 50 + 50) / 100)))
+                    low_100 := centre_100 - k100 * 100
+                    high_100 := centre_100 + k100 * 100
                     grid_low := low_100
                     grid_high := high_100
+                    n100_drawn := k100
+                    n50_drawn := k100 * 2
+                    n25_drawn := k100 * 4
                 reach_100_drawn := high_100 - centre_100
                 if show_100_levels
                     draw_psychological_levels(low_100, high_100, 100, active_basis, color_100, width_100, style_100, show_zones, zone_color_100, lines_100, zones_100, spx_100, line_start_time, line_end_time)

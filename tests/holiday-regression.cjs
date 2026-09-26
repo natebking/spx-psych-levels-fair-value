@@ -536,19 +536,19 @@ const holiday = [
   const trend=[...warm,row('2026-09-10T18:00:00-04:00',7606.5),row('2026-09-11T10:20:00-04:00',7676.25,7669.75)];
   const allTiers={'Show 25-Point Levels':true,'Show Margin of Error Zones':true};
   const filled=await run(trend,{inputs:allTiers});
-  near(filled.adr.at(-1),44); assert.equal(filled.n50.at(-1),2);
+  near(filled.adr.at(-1),44); assert.equal(filled.n100.at(-1),2); assert.equal(filled.n50.at(-1),4);
   assert.equal(filled.has7675.at(-1),1); near(filled.target7675.at(-1),7681.5);
-  assert.equal(filled.count25.at(-1),4); assert.equal(filled.zones25.at(-1),4);
-  near(filled.low25.at(-1),7525); near(filled.high25.at(-1),7675);
+  assert.equal(filled.count25.at(-1),8); assert.equal(filled.zones25.at(-1),8);
+  near(filled.low25.at(-1),7425); near(filled.high25.at(-1),7775);
   assert.equal(filled.start.at(-1),ms('2026-09-10T18:00:00-04:00'));
   console.log('PASS 25-point gaps fill the 50-grid before a 100-point recenter');
   // Regression (SPY 1h): implied SPX ~7730 rounded the 100s
   // to 7700 (7500-7900) but the 50s to 7750 (7650-7850), leaving SPX 7550 undrawn
   // below price. All tiers now share the 50-grid centre, so both sides match.
-  for(const [anchor,low100,high100,low50,high50] of [[7730,7600,7900,7650,7850],[7710,7600,7800,7650,7750],[7670,7500,7800,7550,7750]]) {
+  for(const [anchor,low100,high100,low50,high50] of [[7730,7500,7900,7550,7850],[7710,7500,7900,7550,7850],[7670,7500,7900,7550,7850],[7640,7400,7800,7450,7750]]) {
     const offCentre=[...warm,row('2026-09-10T18:00:00-04:00',anchor+6.5)];
     const grid=await run(offCentre);
-    assert.equal(grid.n50.at(-1),2); assert.equal(grid.n100.at(-1),2);
+    assert.equal(grid.n50.at(-1),4); assert.equal(grid.n100.at(-1),2);
     near(grid.low100.at(-1),low100); near(grid.high100.at(-1),high100);
     near(grid.low50.at(-1),low50); near(grid.high50.at(-1),high50);
     near(grid.low100.at(-1)+grid.high100.at(-1),grid.low50.at(-1)+grid.high50.at(-1));
@@ -559,6 +559,26 @@ const holiday = [
     const wide=await run(offCentre,{inputs:{'    100-Point Span (when 50s hidden, x expected move)':8}});
     near(wide.low100.at(-1),low100); near(wide.high100.at(-1),high100);
   }
+  // Many sessions with opens landing near 50s and near 100s: every session, past and
+  // current, must draw the same ladder shape (9 lines at a normal ADR).
+  const opens=[7606,7641,7662,7689,7712,7648,7655,7631,7699,7674,7627,7652,7688,7603];
+  // Starts in July so ADR-14 is warm for the last 5+ sessions (before that the span
+  // uses a fallback estimate, which can legitimately size the ladder differently).
+  const varied=[];
+  let di=0;
+  for(let d=ms('2026-07-20T00:00:00Z');d<=ms('2026-09-10T00:00:00Z');d+=86400000){
+    const date=new Date(d).toISOString().slice(0,10), dow=new Date(d).getUTCDay();
+    if(dow===0||dow===6||date==='2026-09-07')continue;
+    const o=opens[di++%opens.length];
+    varied.push(row(date+'T09:30:00-04:00',o+6.5,o,{high:o+28.5,low:o-15.5}));
+    varied.push(row(date+'T15:55:00-04:00',o+6.5,o));
+    varied.push(row(date+'T16:00:00-04:00',o+6.5));
+    varied.push(row(date+'T18:00:00-04:00',o+6.5));
+  }
+  const consistent=await run(varied,{inputs:{'Previous Sessions to Show':5}});
+  assert.equal(consistent.gridLines.at(-1),9,'live ladder: 5 hundreds + 4 fifties');
+  assert.equal(consistent.histSessions.at(-1),5);
+  assert.equal(consistent.histLines.at(-1),5*9,'every past session drew the same 9-line ladder');
   console.log('PASS 100- and 50-point tiers share one centre, so neither side of price loses a level');
   // Historical grids: each completed session keeps its own lines, clipped to end where
   // the next session began, never overlapping the current grid; oldest are deleted.
@@ -586,13 +606,15 @@ const holiday = [
     assert.equal(result.count25.at(-1),count); assert.equal(result.spacing25.at(-1),1);
     assert.equal(result.zones25.at(-1),count);
   };
-  checkQuarters(filled,7525,7675,4); near(filled.zoneWidth25.at(-1),10);
+  checkQuarters(filled,7425,7775,8); near(filled.zoneWidth25.at(-1),10);
   // A 50-grid ending on a 50 (centre 7650: 7550-7750) rounds out to the 100s at
   // 7500 and 7800, and the 25s fill that last gap too.
-  for(const [anchor,lo,hi,count] of [[7624.9,7525,7675,4],[7625.1,7525,7775,6]]){
+  // The ladder centres on the nearest 100, so an open either side of 7650 picks 7600
+  // or 7700 and the shape (9 lines, 100s at each end) is identical.
+  for(const [anchor,lo,hi] of [[7649.9,7425,7775],[7650.1,7525,7875]]){
     const rr=await run([...warm,row('2026-09-10T18:00:00-04:00',anchor+6.5)],{inputs:allTiers});
-    checkQuarters(rr,lo,hi,count);
-    if(count===6){ near(rr.low100.at(-1),7500); near(rr.high100.at(-1),7800); near(rr.low50.at(-1),7550); near(rr.high50.at(-1),7750); }
+    checkQuarters(rr,lo,hi,8);
+    near(rr.high100.at(-1)-rr.low100.at(-1),400); assert.equal(rr.gridLines.at(-1),9+8);
   }
   for(const [num,count,lo,hi] of [[3,12,7325,7875],[10,40,6625,8575]]){
     const rr=await run(trend,{inputs:{...allTiers,'Level Span Mode':'Fixed Count','Fixed Count: Levels Each Side':num}});
@@ -603,12 +625,12 @@ const holiday = [
   const hidden=await run(trend,{inputs:{'Show Margin of Error Zones':true}});
   assert.equal(hidden.count25.at(-1),0); assert.equal(hidden.zones25.at(-1),0);
   const staticGrid=await run(trend,{inputs:{...allTiers,'Re-centre Grid on Trend':false}});
-  checkQuarters(staticGrid,7525,7675,4);
+  checkQuarters(staticGrid,7425,7775,8);
   const spyTrend=trend.map(r=>({...r,close:(r.close-6.5)/10-1.6,
     high:r.high==null?undefined:(r.high-6.5)/10-1.6,low:r.low==null?undefined:(r.low-6.5)/10-1.6}));
   const spyFill=await run(spyTrend,{spy:true,inputs:allTiers});
   // SPY starts a new calendar-date grid on the final bar (SPX centre 7650).
-  checkQuarters(spyFill,7525,7775,6); near(spyFill.target7675.at(-1),765.9); near(spyFill.zoneWidth25.at(-1),1);
+  checkQuarters(spyFill,7525,7875,8); near(spyFill.target7675.at(-1),765.9); near(spyFill.zoneWidth25.at(-1),1);
   console.log('PASS exact quarter spacing/edges, count modes/limits, hidden/standalone tiers and SPY scaling');
   const bounds=[
     ['2026-03-08T01:55:00-05:00','2026-03-07T18:00:00-05:00','2026-03-08T18:00:00-04:00'],
