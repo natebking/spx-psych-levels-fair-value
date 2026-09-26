@@ -1,0 +1,6 @@
+{
+  "name": "spx-psych-level-regression-tests",
+  "private": true,
+  "scripts": { "test": "node holiday-regression.cjs" },
+  "devDependencies": { "pinets": "0.9.33" }
+}
